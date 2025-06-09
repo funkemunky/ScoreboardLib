@@ -1,18 +1,19 @@
 package me.tigerhix.lib.scoreboard.type;
 
+import com.destroystokyo.paper.profile.PlayerProfile;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Table;
 import me.tigerhix.lib.scoreboard.ScoreboardLib;
 import me.tigerhix.lib.scoreboard.common.Strings;
-import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
-import org.bukkit.Location;
-import org.bukkit.OfflinePlayer;
+import org.bukkit.*;
+import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scoreboard.DisplaySlot;
 import org.bukkit.scoreboard.Objective;
 import org.bukkit.scoreboard.Team;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.HashMap;
 import java.util.List;
@@ -265,12 +266,13 @@ public class SimpleScoreboard implements Scoreboard {
         }
 
         @Override
-        public boolean isBanned() {
-            return false;
+        public @NotNull PlayerProfile getPlayerProfile() {
+            return null;
         }
 
         @Override
-        public void setBanned(boolean banned) {
+        public boolean isBanned() {
+            return false;
         }
 
         @Override
@@ -304,6 +306,111 @@ public class SimpleScoreboard implements Scoreboard {
 
         @Override
         public Location getBedSpawnLocation() {
+            return null;
+        }
+
+        @Override
+        public long getLastLogin() {
+            return 0;
+        }
+
+        @Override
+        public long getLastSeen() {
+            return 0;
+        }
+
+        @Override
+        public void incrementStatistic(@NotNull Statistic statistic) throws IllegalArgumentException {
+
+        }
+
+        @Override
+        public void decrementStatistic(@NotNull Statistic statistic) throws IllegalArgumentException {
+
+        }
+
+        @Override
+        public void incrementStatistic(@NotNull Statistic statistic, int i) throws IllegalArgumentException {
+
+        }
+
+        @Override
+        public void decrementStatistic(@NotNull Statistic statistic, int i) throws IllegalArgumentException {
+
+        }
+
+        @Override
+        public void setStatistic(@NotNull Statistic statistic, int i) throws IllegalArgumentException {
+
+        }
+
+        @Override
+        public int getStatistic(@NotNull Statistic statistic) throws IllegalArgumentException {
+            return 0;
+        }
+
+        @Override
+        public void incrementStatistic(@NotNull Statistic statistic, @NotNull Material material) throws IllegalArgumentException {
+
+        }
+
+        @Override
+        public void decrementStatistic(@NotNull Statistic statistic, @NotNull Material material) throws IllegalArgumentException {
+
+        }
+
+        @Override
+        public int getStatistic(@NotNull Statistic statistic, @NotNull Material material) throws IllegalArgumentException {
+            return 0;
+        }
+
+        @Override
+        public void incrementStatistic(@NotNull Statistic statistic, @NotNull Material material, int i) throws IllegalArgumentException {
+
+        }
+
+        @Override
+        public void decrementStatistic(@NotNull Statistic statistic, @NotNull Material material, int i) throws IllegalArgumentException {
+
+        }
+
+        @Override
+        public void setStatistic(@NotNull Statistic statistic, @NotNull Material material, int i) throws IllegalArgumentException {
+
+        }
+
+        @Override
+        public void incrementStatistic(@NotNull Statistic statistic, @NotNull EntityType entityType) throws IllegalArgumentException {
+
+        }
+
+        @Override
+        public void decrementStatistic(@NotNull Statistic statistic, @NotNull EntityType entityType) throws IllegalArgumentException {
+
+        }
+
+        @Override
+        public int getStatistic(@NotNull Statistic statistic, @NotNull EntityType entityType) throws IllegalArgumentException {
+            return 0;
+        }
+
+        @Override
+        public void incrementStatistic(@NotNull Statistic statistic, @NotNull EntityType entityType, int i) throws IllegalArgumentException {
+
+        }
+
+        @Override
+        public void decrementStatistic(@NotNull Statistic statistic, @NotNull EntityType entityType, int i) {
+
+        }
+
+        @Override
+        public void setStatistic(@NotNull Statistic statistic, @NotNull EntityType entityType, int i) {
+
+        }
+
+        @Override
+        public @Nullable Location getLastDeathLocation() {
             return null;
         }
 
