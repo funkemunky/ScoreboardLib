@@ -1,30 +1,21 @@
 package me.tigerhix.lib.scoreboard.type;
 
-import com.destroystokyo.paper.profile.PlayerProfile;
-import com.google.common.collect.HashBasedTable;
-import com.google.common.collect.Table;
 import me.tigerhix.lib.scoreboard.ScoreboardLib;
 import me.tigerhix.lib.scoreboard.common.Strings;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.TextComponent;
 import org.bukkit.*;
-import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scoreboard.DisplaySlot;
 import org.bukkit.scoreboard.Objective;
 import org.bukkit.scoreboard.Team;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 public class SimpleScoreboard implements Scoreboard {
-
-    private static final String TEAM_PREFIX = "Scoreboard_";
-    private static int TEAM_COUNTER = 0;
 
     private final org.bukkit.scoreboard.Scoreboard scoreboard;
     private final Objective objective;
@@ -34,9 +25,8 @@ public class SimpleScoreboard implements Scoreboard {
 
     private boolean activated;
     private ScoreboardHandler handler;
-    private Map<FakePlayer, Integer> entryCache = new ConcurrentHashMap<>();
-    private Table<String, Integer, FakePlayer> playerCache = HashBasedTable.create();
-    private Table<Team, String, String> teamCache = HashBasedTable.create();
+    // We use a map to track teams by line number for easy updating.
+    private final Map<Integer, Team> teams = new HashMap<>();
     private BukkitRunnable updateTask;
 
     public SimpleScoreboard(Player holder) {
@@ -75,7 +65,7 @@ public class SimpleScoreboard implements Scoreboard {
             }
         }
         // Unregister teams that are created for this scoreboard
-        for (Team team : teamCache.rowKeySet()) {
+        for (Team team : teams.values()) {
             team.unregister();
         }
         // Stop updating
@@ -127,88 +117,15 @@ public class SimpleScoreboard implements Scoreboard {
         if (!objective.getDisplayName().equals(finalTitle)) objective.setDisplayName(Strings.format(finalTitle));
         // Entries
         List<Entry> passed = handler.getEntries(holder);
-        Map<String, Integer> appeared = new HashMap<>();
-        Map<FakePlayer, Integer> current = new HashMap<>();
         if (passed == null) return;
         for (Entry entry : passed) {
             // Handle the entry
-            String key = entry.getName();
-            Integer score = entry.getPosition();
-            if (key.length() > 48) key = key.substring(0, 47);
-            String appearance;
-            if (key.length() > 16) {
-                appearance = key.substring(16);
-            } else {
-                appearance = key;
-            }
-            if (!appeared.containsKey(appearance)) appeared.put(appearance, -1);
-            appeared.put(appearance, appeared.get(appearance) + 1);
-            // Get fake player
-            FakePlayer faker = getFakePlayer(key, appeared.get(appearance));
-            // Set score
-            objective.getScore(faker).setScore(score);
-            // Update references
-            entryCache.put(faker, score);
-            current.put(faker, score);
-        }
-        appeared.clear();
-        // Remove duplicated or non-existent entries
-        for (FakePlayer fakePlayer : entryCache.keySet()) {
-            if (!current.containsKey(fakePlayer)) {
-                entryCache.remove(fakePlayer);
-                scoreboard.resetScores(fakePlayer.getName());
-            }
-        }
-    }
+            TextComponent key = entry.getName();
+            int score = entry.getPosition();
 
-    @SuppressWarnings("deprecation")
-    private FakePlayer getFakePlayer(String text, int offset) {
-        Team team = null;
-        String name;
-        // If the text has a length less than 16, teams need not to be be created
-        if (text.length() <= 16) {
-            name = text + Strings.repeat(" ", offset);
-        } else {
-            String prefix;
-            String suffix = "";
-            offset++;
-            // Otherwise, iterate through the string and cut off prefix and suffix
-            prefix = text.substring(0, 16 - offset);
-            name = text.substring(16 - offset);
-            if (name.length() > 16) name = name.substring(0, 16);
-            if (text.length() > 32) suffix = text.substring(32 - offset);
-            // If teams already exist, use them
-            for (Team other : teamCache.rowKeySet()) {
-                if (other.getPrefix().equals(prefix) && other.getSuffix().equals(suffix)) {
-                    team = other;
-                }
-            }
-            // Otherwise create them
-            if (team == null) {
-                team = scoreboard.registerNewTeam(TEAM_PREFIX + TEAM_COUNTER++);
-                team.setPrefix(prefix);
-                team.setSuffix(suffix);
-                teamCache.put(team, prefix, suffix);
-            }
+            setLine(score, key);
+            // Update references
         }
-        FakePlayer faker;
-        if (!playerCache.contains(name, offset)) {
-            faker = new FakePlayer(name, team, offset);
-            playerCache.put(name, offset, faker);
-            if (faker.getTeam() != null) {
-                faker.getTeam().addPlayer(faker);
-            }
-        } else {
-            faker = playerCache.get(name, offset);
-            if (team != null && faker.getTeam() != null) {
-                faker.getTeam().removePlayer(faker);
-            }
-            faker.setTeam(team);
-            if (faker.getTeam() != null) {
-                faker.getTeam().addPlayer(faker);
-            }
-        }
-        return faker;
     }
 
     public Objective getObjective() {
@@ -219,223 +136,58 @@ public class SimpleScoreboard implements Scoreboard {
         return scoreboard;
     }
 
-    private static class FakePlayer implements OfflinePlayer {
 
-        private final String name;
+    /**
+     * Sets the title of the scoreboard.
+     * @param title The new title (supports ChatColor).
+     */
+    public void setTitle(String title) {
+        this.objective.setDisplayName(title);
+    }
 
-        private Team team;
-        private int offset;
+    /**
+     * Sets a specific line on the scoreboard to a rich TextComponent.
+     * @param line The line number (from top to bottom, 15 is highest).
+     * @param component The BaseComponent (e.g., TextComponent) to display.
+     */
+    public void setLine(int line, Component component) {
+        Team team = getTeamForLine(line);
 
-        FakePlayer(String name, Team team, int offset) {
-            this.name = name;
-            this.team = team;
-            this.offset = offset;
+        // In 1.13+ we can set the prefix/suffix directly with components.
+        team.prefix(component);
+
+        // Set the score to show this line.
+        objective.getScore(getEntryForLine(line)).setScore(line);
+    }
+
+
+    /**
+     * Retrieves or creates a team for a given line number.
+     * Teams are used to hold the prefix, which is our component content.
+     */
+    private Team getTeamForLine(int line) {
+        if (teams.containsKey(line)) {
+            return teams.get(line);
         }
 
-        public Team getTeam() {
-            return team;
-        }
+        // Team name must be unique. Line number is a good candidate.
+        Team team = scoreboard.registerNewTeam("line" + line);
 
-        public void setTeam(Team team) {
-            this.team = team;
-        }
+        // Each team needs a unique entry to display. We use ChatColor codes.
+        // This entry is what gets the score, but it will be invisible.
+        String entry = getEntryForLine(line);
+        team.addEntry(entry);
 
-        public int getOffset() {
-            return offset;
-        }
+        teams.put(line, team);
+        return team;
+    }
 
-        public String getFullName() {
-            if (team == null) return name;
-            if (team.getSuffix() == null) return team.getPrefix() + name;
-            return team.getPrefix() + name + team.getSuffix();
-        }
-
-        @Override
-        public boolean isOnline() {
-            return true;
-        }
-
-        @Override
-        public String getName() {
-            return name;
-        }
-
-        @Override
-        public UUID getUniqueId() {
-            return UUID.randomUUID();
-        }
-
-        @Override
-        public @NotNull PlayerProfile getPlayerProfile() {
-            return null;
-        }
-
-        @Override
-        public boolean isBanned() {
-            return false;
-        }
-
-        @Override
-        public boolean isWhitelisted() {
-            return false;
-        }
-
-        @Override
-        public void setWhitelisted(boolean whitelisted) {
-        }
-
-        @Override
-        public Player getPlayer() {
-            return null;
-        }
-
-        @Override
-        public long getFirstPlayed() {
-            return 0;
-        }
-
-        @Override
-        public long getLastPlayed() {
-            return 0;
-        }
-
-        @Override
-        public boolean hasPlayedBefore() {
-            return false;
-        }
-
-        @Override
-        public Location getBedSpawnLocation() {
-            return null;
-        }
-
-        @Override
-        public long getLastLogin() {
-            return 0;
-        }
-
-        @Override
-        public long getLastSeen() {
-            return 0;
-        }
-
-        @Override
-        public void incrementStatistic(@NotNull Statistic statistic) throws IllegalArgumentException {
-
-        }
-
-        @Override
-        public void decrementStatistic(@NotNull Statistic statistic) throws IllegalArgumentException {
-
-        }
-
-        @Override
-        public void incrementStatistic(@NotNull Statistic statistic, int i) throws IllegalArgumentException {
-
-        }
-
-        @Override
-        public void decrementStatistic(@NotNull Statistic statistic, int i) throws IllegalArgumentException {
-
-        }
-
-        @Override
-        public void setStatistic(@NotNull Statistic statistic, int i) throws IllegalArgumentException {
-
-        }
-
-        @Override
-        public int getStatistic(@NotNull Statistic statistic) throws IllegalArgumentException {
-            return 0;
-        }
-
-        @Override
-        public void incrementStatistic(@NotNull Statistic statistic, @NotNull Material material) throws IllegalArgumentException {
-
-        }
-
-        @Override
-        public void decrementStatistic(@NotNull Statistic statistic, @NotNull Material material) throws IllegalArgumentException {
-
-        }
-
-        @Override
-        public int getStatistic(@NotNull Statistic statistic, @NotNull Material material) throws IllegalArgumentException {
-            return 0;
-        }
-
-        @Override
-        public void incrementStatistic(@NotNull Statistic statistic, @NotNull Material material, int i) throws IllegalArgumentException {
-
-        }
-
-        @Override
-        public void decrementStatistic(@NotNull Statistic statistic, @NotNull Material material, int i) throws IllegalArgumentException {
-
-        }
-
-        @Override
-        public void setStatistic(@NotNull Statistic statistic, @NotNull Material material, int i) throws IllegalArgumentException {
-
-        }
-
-        @Override
-        public void incrementStatistic(@NotNull Statistic statistic, @NotNull EntityType entityType) throws IllegalArgumentException {
-
-        }
-
-        @Override
-        public void decrementStatistic(@NotNull Statistic statistic, @NotNull EntityType entityType) throws IllegalArgumentException {
-
-        }
-
-        @Override
-        public int getStatistic(@NotNull Statistic statistic, @NotNull EntityType entityType) throws IllegalArgumentException {
-            return 0;
-        }
-
-        @Override
-        public void incrementStatistic(@NotNull Statistic statistic, @NotNull EntityType entityType, int i) throws IllegalArgumentException {
-
-        }
-
-        @Override
-        public void decrementStatistic(@NotNull Statistic statistic, @NotNull EntityType entityType, int i) {
-
-        }
-
-        @Override
-        public void setStatistic(@NotNull Statistic statistic, @NotNull EntityType entityType, int i) {
-
-        }
-
-        @Override
-        public @Nullable Location getLastDeathLocation() {
-            return null;
-        }
-
-        @Override
-        public Map<String, Object> serialize() {
-            return null;
-        }
-
-        @Override
-        public boolean isOp() {
-            return false;
-        }
-
-        @Override
-        public void setOp(boolean op) {
-        }
-
-        @Override
-        public String toString() {
-            return "FakePlayer{" +
-                    "name='" + name + '\'' +
-                    ", team=" + team
-                    + '}';
-        }
-
+    /**
+     * Gets the unique, invisible entry name for a given line.
+     * We use ChatColor codes to make them unique and not display in chat.
+     */
+    private String getEntryForLine(int line) {
+        return ChatColor.values()[line].toString() + ChatColor.RESET;
     }
 
 }
